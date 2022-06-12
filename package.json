@@ -14,6 +14,6 @@
   "author": "Paul Jamieson",
   "license": "ISC",
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "axios": "^0.27.2"
   }
 }

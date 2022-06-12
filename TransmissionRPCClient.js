@@ -1,11 +1,11 @@
-const fetch = require("node-fetch");
+const axios = require("axios").default;
 
 // Full RPC Documentation at:
 // https://github.com/transmission/transmission/blob/main/docs/rpc-spec.md
 
 class TransmissionRPCClient {
   constructor(url, user, password) {
-    this.url = new URL(url);
+    this.url = new URL(url).toString();
     this.sessionId = null;
     this.auth = Buffer.from(`${user}:${password}`).toString("base64");
   }
@@ -19,27 +19,30 @@ class TransmissionRPCClient {
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#security_of_basic_authentication
   http(method, keys) {
     return new Promise(async (resolve, reject) => {
-      try {
-        while (true) {
-          let resp = await fetch(this.url, {
-            method: "POST",
+      while (true) {
+        try {
+          const request = {
+            url: this.url,
+            method: "post",
             headers: {
               Accept: "application/json",
               "Content-Type": "application/json",
               "x-transmission-session-id": this.sessionId,
               Authorization: `Basic ${this.auth}`,
             },
-            body: JSON.stringify({ method, arguments: keys }),
-          });
-          if (resp.status === 409) {
-            this.sessionId = resp.headers.get("x-transmission-session-id");
+            data: JSON.stringify({ method, arguments: keys }),
+          };
+          const resp = await axios.request(request);
+          return resolve(resp.data);
+        } catch (e) {
+          if (e?.response?.status === 409) {
+            this.sessionId = e.response.headers["x-transmission-session-id"];
             continue;
           }
-          if (resp.status === 401) throw "Unauthorized to access RPC Server";
-          return resolve(await resp.json());
+          if (e?.response?.status === 401)
+            throw "Unauthorized to access RPC Server";
+          return reject(e);
         }
-      } catch (e) {
-        reject(e);
       }
     });
   }
@@ -340,6 +343,7 @@ class TransmissionRPCClient {
     return new Promise(async (resolve, reject) => {
       try {
         const resp = await this.http("free-space", { path });
+
         resolve(resp.result === "success" ? resp.arguments : resp.result);
       } catch (e) {
         reject(e);
